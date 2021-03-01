@@ -15,7 +15,7 @@ var listCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		tasks, err := db.AllTasks()
 		if err != nil {
-			fmt.Println("Something went wrong:", err.Error())
+			fmt.Println("Something went wrong:", err)
 			os.Exit(1)
 		}
 		if len(tasks) == 0 {
@@ -24,7 +24,7 @@ var listCmd = &cobra.Command{
 		}
 		fmt.Println("You have the folowing tasks:")
 		for i, task := range tasks {
-			fmt.Printf("%d. %s\n", i+1, task.Value)
+			fmt.Printf("%d. %s, Key=%d\n", i+1, task.Value, task.Key)
 		}
 	},
 }
