@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	_ "github.com/lib/pq"
+	phoneDB "github.com/marcosgeo/go/phone/db"
 )
 
 const (
@@ -19,40 +20,52 @@ const (
 
 func main() {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s sslmode=disable", host, port, user, password)
-	db, err := sql.Open("postgres", psqlInfo)
-	must(err)
-	err = resetDB(db, dbname)
-	must(err)
-	db.Close()
+	must(phoneDB.Reset("postgres", psqlInfo, dbname))
 
 	psqlInfo = fmt.Sprintf("%s dbname=%s", psqlInfo, dbname)
-	db, err = sql.Open("postgres", psqlInfo)
+	must(phoneDB.Migrate("postgres", psqlInfo))
+
+	db, err := phoneDB.Open("postgres", psqlInfo)
 	must(err)
 	defer db.Close()
 
-	must(db.Ping())
+	err = db.Seed()
+	must(err)
+	phones, err := db.AllPhones()
+	must(err)
+	for _, p := range phones {
+		fmt.Printf("Working on... %+v\n", p)
+		number := normalize(p.Number)
+		if number != p.Number {
+			fmt.Println("Updating or removing...", number)
+			existing, err := db.FindPhone(number)
+			must(err)
+			if existing != nil {
+				must(db.DeletePhone(p.ID))
+			} else {
+				p.Number = number
+				must(db.UpdatePhone(&p))
+			}
+		} else {
+			fmt.Println("No changes required")
+		}
+	}
+}
+
+func getPhone(db *sql.DB, id int) (string, error) {
+	var number string
+	row := db.QueryRow("SELECT value FROM phone_numbers WHERE id=$1", id)
+	err := row.Scan(&number)
+	if err != nil {
+		return "", err
+	}
+	return number, nil
 }
 
 func must(err error) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func resetDB(db *sql.DB, name string) error {
-	_, err := db.Exec("DROP DATABASE IF EXISTS " + name)
-	if err != nil {
-		return err
-	}
-	return createDB(db, name)
-}
-
-func createDB(db *sql.DB, name string) error {
-	_, err := db.Exec("CREATE DATABASE " + name)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func normalize(phone string) string {
