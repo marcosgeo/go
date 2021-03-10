@@ -8,4 +8,5 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.1.3
 	golang.org/x/sys v0.0.0-20210223095934-7937bea0104d // indirect
+	golang.org/x/tools v0.1.0 // indirect
 )

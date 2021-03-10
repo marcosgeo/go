@@ -4,18 +4,19 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"os"
 	"regexp"
 
 	_ "github.com/lib/pq"
 	phoneDB "github.com/marcosgeo/go/phone/db"
 )
 
-const (
-	host     = "localhost"
-	port     = 5433
-	user     = "zapgis"
-	password = ".senha."
-	dbname   = "gophercises"
+var (
+	host     = os.Getenv("DB_HOST")
+	port     = os.Getenv("DB_PORT")
+	user     = os.Getenv("DB_USER")
+	password = os.Getenv("DB_PASSWORD")
+	dbname   = os.Getenv("DB_NAME")
 )
 
 func main() {
