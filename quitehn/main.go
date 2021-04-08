@@ -32,9 +32,14 @@ func main() {
 }
 
 func handler(numStories int, tpl *template.Template) http.HandlerFunc {
+	sc := storyCache{
+		numStories: 30,
+		duration:   3 * time.Second,
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		stories, err := getCachedStories(numStories)
+		stories, err := sc.stories()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -51,25 +56,37 @@ func handler(numStories int, tpl *template.Template) http.HandlerFunc {
 	})
 }
 
-var (
-	cache           []item
-	cacheExpiration time.Time
-	cacheMutex      sync.Mutex
-)
+type storyCache struct {
+	numStories     int
+	cacheA, cacheB []item
+	useA           bool
+	expiration     time.Time
+	duration       time.Duration
+	mutex          sync.Mutex
+}
 
-func getCachedStories(numStories int) ([]item, error) {
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
-	if time.Now().Sub(cacheExpiration) < 0 {
-		return cache, nil
+func (sc *storyCache) stories() ([]item, error) {
+	sc.mutex.Lock()
+	defer sc.mutex.Unlock()
+	if time.Now().Sub(sc.expiration) < 0 {
+		if sc.useA {
+			return sc.cacheA, nil
+		} else {
+			return sc.cacheB, nil
+		}
 	}
-	stories, err := getTopStories(numStories) // cacheMutex prevent this function to be call too many times
+	stories, err := getTopStories(sc.numStories)
 	if err != nil {
 		return nil, err
 	}
-	cache = stories
-	cacheExpiration = time.Now().Add(2 * time.Second)
-	return stories, nil
+	sc.expiration = time.Now().Add(sc.duration)
+	if sc.useA {
+		sc.cacheA = stories
+		return sc.cacheB, nil
+	} else {
+		sc.cacheB = stories
+		return sc.cacheB, nil
+	}
 }
 
 func getTopStories(numStories int) ([]item, error) {
