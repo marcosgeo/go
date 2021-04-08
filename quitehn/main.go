@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/marcosgeo/go/quitehn/hn"
@@ -53,13 +54,16 @@ func handler(numStories int, tpl *template.Template) http.HandlerFunc {
 var (
 	cache           []item
 	cacheExpiration time.Time
+	cacheMutex      sync.Mutex
 )
 
 func getCachedStories(numStories int) ([]item, error) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
 	if time.Now().Sub(cacheExpiration) < 0 {
 		return cache, nil
 	}
-	stories, err := getTopStories(numStories)
+	stories, err := getTopStories(numStories) // cacheMutex prevent this function to be call too many times
 	if err != nil {
 		return nil, err
 	}
