@@ -8,18 +8,18 @@ import (
 
 func main() {
 	v := secrets.File("my-fake-key", "./secrets/secrets")
-	err := v.Set("demo_key1", "123 some crazy value")
-	if err != nil {
-		panic(err)
-	}
-	err = v.Set("demo_key2", "456 some crazy value")
-	if err != nil {
-		panic(err)
-	}
-	err = v.Set("demo_key3", "789 some crazy value")
-	if err != nil {
-		panic(err)
-	}
+	// err := v.Set("demo_key1", "123 some crazy value")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// err = v.Set("demo_key2", "456 some crazy value")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// err = v.Set("demo_key3", "789 some crazy value")
+	// if err != nil {
+	// 	panic(err)
+	// }
 	plain, err := v.Get("demo_key1")
 	if err != nil {
 		panic(err)
