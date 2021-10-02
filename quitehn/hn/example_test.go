@@ -6,7 +6,7 @@ package hn_test
 import (
 	"fmt"
 
-	"github.com/marcosgeo/quitehn/hn"
+	"github.com/marcosgeo/go/quitehn/hn"
 )
 
 func ExampleClient() {
