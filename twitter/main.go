@@ -3,64 +3,81 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 
 	"golang.org/x/oauth2"
 )
 
 func main() {
-	var keys struct {
-		Key    string `json:"api_key"`
-		Secret string `json:"api_secret_key"`
-	}
-	// get current path
-	_path, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		panic(err)
-	}
-	path := strings.TrimSpace(string(_path))
-	f, err := os.Open(fmt.Sprintf("%s/twitter/.keys.json", path))
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	dec.Decode(&keys)
-	// fmt.Printf("%+v\n", keys)
+	var (
+		keyFile   string
+		usersFile string
+		tweetID   string
+	)
+	flag.StringVar(&keyFile, "key", ".keys.json", "The file where you store your consumer key and secret for the Twitter API")
+	flag.StringVar(&usersFile, "users", "users.csv", "The file where users who have retweeted the tweet are stored. This will be created if it does not exist.")
+	flag.StringVar(&tweetID, "tweet", "991053593250758658", "The ID of the Tweet you wish to find retweeters of.")
+	flag.Parse()
 
+	key, secret, err := keys(keyFile)
+	if err != nil {
+		panic(err)
+	}
+	client, err := twitterClient(key, secret)
+	if err != nil {
+		panic(err)
+	}
+	usernames, err := retweeters(client, tweetID)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(usernames)
+}
+
+func twitterClient(key, secret string) (*http.Client, error) {
 	req, err := http.NewRequest("POST", "https://api.twitter.com/oauth2/token",
 		strings.NewReader("grant_type=client_credentials"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	req.SetBasicAuth(keys.Key, keys.Secret)
+	req.SetBasicAuth(key, secret)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
 
 	var client http.Client
 	res, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	var token oauth2.Token
-	dec = json.NewDecoder(res.Body)
+	dec := json.NewDecoder(res.Body)
 	err = dec.Decode(&token)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var conf oauth2.Config
-	twitter_client := conf.Client(context.Background(), &token)
-	usernames, err := retweeters(twitter_client, "991053593250758658")
-	if err != nil {
-		panic(err)
+	return conf.Client(context.Background(), &token), nil
+}
+
+func keys(keyFile string) (key, secret string, err error) {
+	var keys struct {
+		Key    string `json:"api_key"`
+		Secret string `json:"api_secret_key"`
 	}
-	fmt.Println(usernames)
+	f, err := os.Open(keyFile)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	dec.Decode(&keys)
+	return keys.Key, keys.Secret, nil
 }
 
 func retweeters(client *http.Client, tweetID string) ([]string, error) {
