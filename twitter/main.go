@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,11 +32,31 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	usernames, err := retweeters(client, tweetID)
+	newUsernames, err := retweeters(client, tweetID)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(usernames)
+	existUsernames := existing(usersFile)
+	allUsernames := merge(newUsernames, existUsernames)
+	err = writeUsers(usersFile, allUsernames)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func keys(keyFile string) (key, secret string, err error) {
+	var keys struct {
+		Key    string `json:"api_key"`
+		Secret string `json:"api_secret_key"`
+	}
+	f, err := os.Open(keyFile)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	dec.Decode(&keys)
+	return keys.Key, keys.Secret, nil
 }
 
 func twitterClient(key, secret string) (*http.Client, error) {
@@ -65,21 +86,6 @@ func twitterClient(key, secret string) (*http.Client, error) {
 	return conf.Client(context.Background(), &token), nil
 }
 
-func keys(keyFile string) (key, secret string, err error) {
-	var keys struct {
-		Key    string `json:"api_key"`
-		Secret string `json:"api_secret_key"`
-	}
-	f, err := os.Open(keyFile)
-	if err != nil {
-		return "", "", err
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	dec.Decode(&keys)
-	return keys.Key, keys.Secret, nil
-}
-
 func retweeters(client *http.Client, tweetID string) ([]string, error) {
 	url := fmt.Sprintf("https://api.twitter.com/1.1/statuses/retweets/%s.json", tweetID)
 	res, err := client.Get(url)
@@ -103,4 +109,53 @@ func retweeters(client *http.Client, tweetID string) ([]string, error) {
 		usernames = append(usernames, retweet.User.ScreenName)
 	}
 	return usernames, nil
+}
+
+func existing(usersFile string) []string {
+	f, err := os.Open(usersFile)
+	if err != nil {
+		return []string{}
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	lines, err := r.ReadAll()
+	users := make([]string, 0, len(lines))
+	for _, line := range lines {
+		users = append(users, line[0])
+	}
+	return users
+}
+
+func merge(a, b []string) []string {
+	uniq := make(map[string]struct{})
+	for _, user := range a {
+		uniq[user] = struct{}{}
+	}
+	for _, user := range b {
+		uniq[user] = struct{}{}
+	}
+	ret := make([]string, 0, len(uniq))
+	for user := range uniq {
+		ret = append(ret, user)
+	}
+	return ret
+}
+
+func writeUsers(usersFile string, users []string) error {
+
+	f, err := os.OpenFile(usersFile, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+	w := csv.NewWriter(f)
+	for _, username := range users {
+		if err := w.Write([]string{username}); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return err
+	}
+	return nil
 }
