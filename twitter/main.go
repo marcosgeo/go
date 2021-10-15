@@ -6,22 +6,26 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 )
 
 func main() {
 	var (
-		keyFile   string
-		usersFile string
-		tweetID   string
+		keyFile    string
+		usersFile  string
+		tweetID    string
+		numWinners int
 	)
 	flag.StringVar(&keyFile, "key", ".keys.json", "The file where you store your consumer key and secret for the Twitter API")
 	flag.StringVar(&usersFile, "users", "users.csv", "The file where users who have retweeted the tweet are stored. This will be created if it does not exist.")
 	flag.StringVar(&tweetID, "tweet", "991053593250758658", "The ID of the Tweet you wish to find retweeters of.")
+	flag.IntVar(&numWinners, "winners", 0, "The number of winner to pick")
 	flag.Parse()
 
 	key, secret, err := keys(keyFile)
@@ -41,6 +45,16 @@ func main() {
 	err = writeUsers(usersFile, allUsernames)
 	if err != nil {
 		panic(err)
+	}
+
+	if numWinners == 0 {
+		return
+	}
+	existUsernames = existing(usersFile)
+	winners := pickWinners(existUsernames, numWinners)
+	fmt.Println("The winners are:")
+	for _, username := range winners {
+		fmt.Printf("\t%s\n", username)
 	}
 }
 
@@ -118,7 +132,7 @@ func existing(usersFile string) []string {
 	}
 	defer f.Close()
 	r := csv.NewReader(f)
-	lines, err := r.ReadAll()
+	lines, _ := r.ReadAll()
 	users := make([]string, 0, len(lines))
 	for _, line := range lines {
 		users = append(users, line[0])
@@ -158,4 +172,15 @@ func writeUsers(usersFile string, users []string) error {
 		return err
 	}
 	return nil
+}
+
+func pickWinners(users []string, numWinners int) []string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	perm := r.Perm(len(users))
+	winners := perm[:numWinners]
+	winnersNames := make([]string, 0, numWinners)
+	for _, idx := range winners {
+		winnersNames = append(winnersNames, users[idx])
+	}
+	return winnersNames
 }
